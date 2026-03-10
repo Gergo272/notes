@@ -5,9 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Supabase Notes – Modern Dark</title>
   
-  <!-- Google Fonts: Inter -->
   <link href="https://fonts.googleapis.com" rel="stylesheet">
-  <!-- Supabase JS -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
   <style>
@@ -19,6 +17,8 @@
       --accent: #3b82f6;
       --accent-hover: #2563eb;
       --border: #334155;
+      --danger: #ef4444;
+      --danger-hover: #dc2626;
     }
 
     body {
@@ -80,14 +80,35 @@
       border: 1px solid var(--border);
       margin-bottom: 15px;
       transition: transform 0.2s;
+      position: relative;
     }
 
     .note-card:hover { transform: translateY(-2px); }
-    .note-card h3 { margin: 0 0 10px 0; font-size: 1.2rem; color: var(--accent); }
+    .note-card h3 { margin: 0 0 10px 0; font-size: 1.2rem; color: var(--accent); padding-right: 30px; }
     .note-card p { margin: 0; color: var(--text); font-weight: 300; }
     .note-card small { color: var(--text-muted); display: block; margin-top: 15px; font-size: 0.75rem; }
 
-    /* Üres állapot stílusa */
+    .delete-btn {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      background: transparent;
+      color: var(--text-muted);
+      border: none;
+      padding: 2px 6px;
+      border-radius: 6px;
+      font-size: 1rem;
+      line-height: 1;
+      cursor: pointer;
+      transition: color 0.15s, background 0.15s;
+      font-weight: 400;
+    }
+
+    .delete-btn:hover {
+      background: rgba(239, 68, 68, 0.15);
+      color: var(--danger);
+    }
+
     .empty-msg { text-align: center; color: var(--text-muted); padding: 40px; }
   </style>
 </head>
@@ -118,10 +139,35 @@
       return div.innerHTML;
     }
 
-    // Szebb dátum formázás
     function formatDate(dateStr) {
       const d = new Date(dateStr);
       return d.toLocaleDateString('hu-HU') + ' ' + d.toLocaleTimeString('hu-HU', {hour: '2-digit', minute:'2-digit'});
+    }
+
+    async function deleteNote(id) {
+      if (!confirm("Biztosan törlöd ezt a jegyzetet?")) return;
+
+      console.log("Törlés indul, id:", id, "típus:", typeof id);
+
+      const { data, error, status, statusText } = await supabaseClient
+        .from("notes")
+        .delete()
+        .eq("id", id)
+        .select();
+
+      console.log("Törlés válasz:", { data, error, status, statusText });
+
+      if (error) {
+        alert("Törlési hiba: " + error.message + "\nKód: " + error.code);
+        return;
+      }
+
+      if (!data || data.length === 0) {
+        alert("A törlés lefutott, de nem törölt sort. Valószínűleg RLS policy blokkolta.\n\nSupabase dashboardon engedélyezd a DELETE műveletet az anon szerepkörnek a notes táblán.");
+        return;
+      }
+
+      loadNotes();
     }
 
     async function loadNotes() {
@@ -142,11 +188,16 @@
 
       listEl.innerHTML = data.map(note => `
         <div class="note-card">
+          <button class="delete-btn" data-id="${note.id}" title="Törlés">✕</button>
           <h3>${escapeHtml(note.title)}</h3>
           <p>${escapeHtml(note.content)}</p>
           <small>📅 ${formatDate(note.created_at)}</small>
         </div>
       `).join("");
+
+      listEl.querySelectorAll(".delete-btn").forEach(btn => {
+        btn.addEventListener("click", () => deleteNote(btn.dataset.id));
+      });
     }
 
     form.addEventListener("submit", async (e) => {
