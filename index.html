@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="hu">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Supabase Notes – Modern Dark</title>
+  
+  <!-- Google Fonts: Inter -->
+  <link href="https://fonts.googleapis.com" rel="stylesheet">
+  <!-- Supabase JS -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card-bg: #1e293b;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent: #3b82f6;
+      --accent-hover: #2563eb;
+      --border: #334155;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 40px 20px;
+      line-height: 1.6;
+    }
+
+    h1 { font-weight: 600; font-size: 1.8rem; margin-bottom: 2rem; text-align: center; }
+    h2 { font-size: 1.1rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; }
+
+    #noteForm {
+      background: var(--card-bg);
+      padding: 20px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      display: grid;
+      gap: 15px;
+      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+      margin-bottom: 40px;
+    }
+
+    input, textarea {
+      background: #0f172a;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+      color: white;
+      font-family: inherit;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    input:focus, textarea:focus { border-color: var(--accent); }
+
+    button {
+      background: var(--accent);
+      color: white;
+      border: none;
+      padding: 12px;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    button:hover { background: var(--accent-hover); }
+
+    hr { border: 0; border-top: 1px solid var(--border); margin: 40px 0; }
+
+    .note-card {
+      background: var(--card-bg);
+      padding: 20px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      margin-bottom: 15px;
+      transition: transform 0.2s;
+    }
+
+    .note-card:hover { transform: translateY(-2px); }
+    .note-card h3 { margin: 0 0 10px 0; font-size: 1.2rem; color: var(--accent); }
+    .note-card p { margin: 0; color: var(--text); font-weight: 300; }
+    .note-card small { color: var(--text-muted); display: block; margin-top: 15px; font-size: 0.75rem; }
+
+    /* Üres állapot stílusa */
+    .empty-msg { text-align: center; color: var(--text-muted); padding: 40px; }
+  </style>
+</head>
+
+<body>
+  <h1>📝 Supabase Notes</h1>
+
+  <form id="noteForm">
+    <input id="title" placeholder="Cím" required />
+    <textarea id="content" placeholder="Jegyzet szövege" rows="4" required></textarea>
+    <button type="submit">Mentés</button>
+  </form>
+
+  <h2>Legutóbbi jegyzetek</h2>
+  <div id="list"></div>
+
+  <script>
+    const SUPABASE_URL = "https://qtpibzwtzremjjhgmnni.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF0cGliend0enJlbWpqaGdtbm5pIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMxMzEyNjksImV4cCI6MjA4ODcwNzI2OX0.f727QF2No5-KuqQgGn_61JLldDgKxIt3nU6P4HGT53E";
+
+    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const form = document.getElementById("noteForm");
+    const listEl = document.getElementById("list");
+
+    function escapeHtml(text) {
+      const div = document.createElement("div");
+      div.textContent = text ?? "";
+      return div.innerHTML;
+    }
+
+    // Szebb dátum formázás
+    function formatDate(dateStr) {
+      const d = new Date(dateStr);
+      return d.toLocaleDateString('hu-HU') + ' ' + d.toLocaleTimeString('hu-HU', {hour: '2-digit', minute:'2-digit'});
+    }
+
+    async function loadNotes() {
+      const { data, error } = await supabaseClient
+        .from("notes")
+        .select("id, title, content, created_at")
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        listEl.innerHTML = `<p style="color:#ef4444;">Hiba történt: ${escapeHtml(error.message)}</p>`;
+        return;
+      }
+
+      if (!data || data.length === 0) {
+        listEl.innerHTML = `<div class="empty-msg">Nincsenek még jegyzetek. Kezdj el írni!</div>`;
+        return;
+      }
+
+      listEl.innerHTML = data.map(note => `
+        <div class="note-card">
+          <h3>${escapeHtml(note.title)}</h3>
+          <p>${escapeHtml(note.content)}</p>
+          <small>📅 ${formatDate(note.created_at)}</small>
+        </div>
+      `).join("");
+    }
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const title = document.getElementById("title").value.trim();
+      const content = document.getElementById("content").value.trim();
+
+      const { error } = await supabaseClient
+        .from("notes")
+        .insert([{ title, content }]);
+
+      if (error) {
+        alert("Hiba: " + error.message);
+        return;
+      }
+
+      form.reset();
+      loadNotes();
+    });
+
+    loadNotes();
+  </script>
+</body>
+</html>
