@@ -147,15 +147,11 @@
     async function deleteNote(id) {
       if (!confirm("Biztosan törlöd ezt a jegyzetet?")) return;
 
-      console.log("Törlés indul, id:", id, "típus:", typeof id);
-
       const { data, error, status, statusText } = await supabaseClient
         .from("notes")
         .delete()
         .eq("id", id)
         .select();
-
-      console.log("Törlés válasz:", { data, error, status, statusText });
 
       if (error) {
         alert("Törlési hiba: " + error.message + "\nKód: " + error.code);
